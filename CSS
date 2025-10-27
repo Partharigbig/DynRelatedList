@@ -1,0 +1,65 @@
+  /* Remove every last outer gap; make adjacent cards butt together */
+  :host,
+  .no-outer-gap,
+  .tight-card,
+  .slds-card {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Tight card and full width */
+  .tight-card {
+    border: none !important;
+    width: 100% !important;
+  }
+  
+  /* Kill body & scrollable paddings */
+  .no-gaps,
+  .slds-card__body,
+  .slds-card__body_inner,
+  .slds-scrollable_x {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  /* Header: base grey divider + BROWN tint requested */
+  .related-header {
+    border-bottom: 1px solid var(--lwc-colorBorder, #e5e5e5);
+  }
+  .related-header--brown {
+    /* soft warm brown similar to native ‘panel’ styling */
+    background: #f6efe7; /* tweak if you want darker: #efe3d6 */
+  }
+  
+  /* Push actions fully to right */
+  .slds-col_bump-left { margin-left: auto; }
+  
+  /* Name link look */
+  :host ::deep(a) {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #0176d3;
+  }
+  :host ::deep(a:hover) { text-decoration: underline; }
+  
+  /* Stretch datatable to edges */
+  :host lightning-datatable {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  
+  /* Row density (slightly taller to visually fill the card) */
+  :host ::deep(.slds-table th),
+  :host ::deep(.slds-table td) {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+  
+  /* No bottom border shadow */
+  :host ::deep(.slds-table) { border-bottom: none !important; }
+  
+  /* Footer (View All) flush */
+  .slds-card__footer {
+    padding: 0 !important;
+    border-top: none !important;
+  }
