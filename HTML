@@ -1,0 +1,52 @@
+<template>
+  <article class="slds-card slds-card_boundary slds-related-list tight-card no-outer-gap">
+    <!-- Header: now brown-tinted -->
+    <div class="slds-card__header related-header related-header--brown slds-grid slds-grid_vertical-align-center slds-grid_align-spread slds-p-horizontal_small slds-p-vertical_xx-small no-outer-gap">
+      <div class="slds-media slds-media_center">
+        <lightning-icon icon-name="utility:stethoscope" size="small" class="slds-m-right_small"></lightning-icon>
+        <div class="slds-media__body">
+          <h2 class="slds-card__header-title slds-truncate" title={displayTitle}>
+            <span class="slds-text-heading_small slds-text-title_bold">{displayTitle}</span>
+          </h2>
+          <p class="slds-text-body_small slds-text-color_weak">{subtitle}</p>
+        </div>
+      </div>
+ 
+      <div class="slds-no-flex slds-button-group slds-col_bump-left" role="group">
+        <lightning-button-icon icon-name="utility:refresh"
+                               alternative-text="Refresh" title="Refresh"
+                               class="slds-button_icon-border-filled slds-m-right_small"
+                               onclick={handleRefresh}>
+        </lightning-button-icon>
+        <lightning-button label={newButtonLabel} variant="neutral" onclick={handleNew}></lightning-button>
+      </div>
+    </div>
+ 
+    <div class="slds-card__body slds-card__body_inner no-gaps">
+      <div class="slds-scrollable_x no-gaps">
+        <template if:true={rows.length}>
+          <lightning-datatable
+            key-field="Id"
+            data={rows}
+            columns={columns}
+            hide-checkbox-column
+            show-row-number-column
+            sorted-by={sortedBy}
+            sorted-direction={sortedDirection}
+            onsort={handleSort}
+            onrowaction={handleRowAction}>
+          </lightning-datatable>
+        </template>
+        <template if:false={rows.length}>
+          <div class="slds-text-body_regular slds-p-around_xx-small">No records yet.</div>
+        </template>
+      </div>
+    </div>
+ 
+    <template if:true={showViewAll}>
+      <footer class="slds-card__footer slds-grid slds-grid_align-center no-outer-gap">
+        <a class="slds-card__footer-action" onclick={handleViewAll}>View All</a>
+      </footer>
+    </template>
+  </article>
+</template>
