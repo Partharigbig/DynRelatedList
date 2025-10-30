@@ -1,0 +1,256 @@
+import { LightningElement, api, wire, track } from 'lwc';
+import { NavigationMixin } from 'lightning/navigation';
+import { encodeDefaultFieldValues } from 'lightning/pageReferenceUtils';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { refreshApex } from '@salesforce/apex';
+ 
+import getChildren from '@salesforce/apex/MedicalConditionsMobileCtrl.getChildren';
+import getRtId from '@salesforce/apex/MedicalConditionsMobileCtrl.getRecordTypeIdByDeveloperName';
+import countChildren from '@salesforce/apex/MedicalConditionsMobileCtrl.countChildren';
+ 
+export default class MedicalRelatedListByRT extends NavigationMixin(LightningElement) {
+  @api recordId;
+ 
+  // App Builder props
+  @api title = 'Related Records';
+  @api childObjectApiName = 'Medical_Conditions__c';
+  @api parentLookupFieldApiName = 'Account__c';
+  @api recordTypeDeveloperName; // e.g., Allergy_Intolerance | Medical_Conditions
+  @api fieldsToShow = 'Name,Medical_Conditions_Disabilities_Name__c,Allergy_Type__c,Treatment__c,Additional_Notes__c';
+  @api maxRows = 50;
+  @api newButtonLabel = 'New';
+  @api viewAllTabApiName = 'Medical_View_All';
+ 
+  // State
+  allRows = [];
+  rows = [];
+  columns = [];
+  totalCount = 0;
+  recordTypeId;
+  errorMsg;
+  lastLoaded = null;
+  wiredChildrenResult;
+  @track refreshNonce = 0;
+ 
+  // Sorting (default Name ASC)
+  sortedBy = 'Name';
+  sortedDirection = 'asc';
+ 
+  // “Updated … ago” live clock
+  @track _nowTick = Date.now();
+  _timerId;
+ 
+  // ----- computed -----
+  get fieldList() {
+    return (this.fieldsToShow || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+  get hasCount() { return (this.totalCount || 0) > 0; }
+  get itemCountText() {
+    const n = this.totalCount || 0;
+    return `${n} item${n === 1 ? '' : 's'}`;
+  }
+  get updatedAgo() {
+    if (!this.lastLoaded) return '';
+    const secs = Math.floor((this._nowTick - this.lastLoaded) / 1000);
+    if (secs < 60) return `${secs}s ago`;
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    return `${hrs} hr ago`;
+  }
+  get subtitle() {
+    const bits = [];
+    if (this.hasCount) bits.push(this.itemCountText);
+    bits.push('Filtered by Record Type');
+    if (this.lastLoaded) bits.push(`Updated ${this.updatedAgo}`);
+    return bits.join(' • ');
+  }
+  get showViewAll() {
+    return this.totalCount > (this.rows?.length || 0);
+  }
+  // Title with count e.g. “Allergy Intolerance (4)”
+  get displayTitle() {
+    const n = this.totalCount || 0;
+    return `${this.title} (${n})`;
+  }
+ 
+  // ----- lifecycle -----
+  connectedCallback() {
+    this.buildColumns();
+    // tick every 10s so “Updated … ago” moves automatically
+    this._timerId = window.setInterval(() => { this._nowTick = Date.now(); }, 10000);
+  }
+  disconnectedCallback() {
+    if (this._timerId) window.clearInterval(this._timerId);
+  }
+ 
+  // ----- columns (+ row actions) -----
+  buildColumns() {
+    const cols = this.fieldList.map(f => {
+      if (f === 'Name') {
+        return {
+          label: 'Name',
+          fieldName: 'recordUrl',
+          type: 'url',
+          typeAttributes: { label: { fieldName: 'Name' }, target: '_blank' },
+          cellAttributes: { class: 'slds-text-title_bold slds-text-heading_small' },
+          sortable: true
+        };
+      }
+      let label = f;
+      if (f.endsWith('__c')) {
+        label = f.replace('__c', '').replace(/_/g, ' ');
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+      }
+      return { label, fieldName: f, type: 'text', sortable: true };
+    });
+ 
+    cols.push({
+      type: 'action',
+      typeAttributes: { rowActions: this.getRowActions },
+      cellAttributes: { alignment: 'right' }
+    });
+ 
+    this.columns = cols;
+  }
+ 
+  getRowActions(row, done) {
+    done([{ label: 'Edit', name: 'edit' }]);
+  }
+ 
+  // ----- wires -----
+  @wire(getRtId, { sobjectApiName: '$childObjectApiName', developerName: '$recordTypeDeveloperName' })
+  wiredRt({ data, error }) {
+    if (data !== undefined) this.recordTypeId = data || null;
+    else if (error) this.errorMsg = 'Record Type lookup failed.';
+  }
+ 
+  @wire(countChildren, {
+    parentId: '$recordId',
+    childObjectApiName: '$childObjectApiName',
+    parentLookupFieldApiName: '$parentLookupFieldApiName',
+    recordTypeId: '$recordTypeId'
+  })
+  wiredCount({ data }) {
+    if (data !== undefined) this.totalCount = data || 0;
+  }
+ 
+  @wire(getChildren, {
+    parentId: '$recordId',
+    childObjectApiName: '$childObjectApiName',
+    parentLookupFieldApiName: '$parentLookupFieldApiName',
+    fieldApiNames: '$fieldList',
+    recordTypeId: '$recordTypeId',
+    limitSize: '$maxRows',
+    nonce: '$refreshNonce'
+  })
+  wiredChildren(result) {
+    this.wiredChildrenResult = result;
+    const { data, error } = result;
+    if (data) {
+      this.allRows = data.map(r => ({ ...r, recordUrl: '/' + r.Id }));
+      // reset to default sort on each load
+      this.sortedBy = 'Name';
+      this.sortedDirection = 'asc';
+      this.applySort();
+      this.errorMsg = undefined;
+      this.lastLoaded = Date.now();
+      this._nowTick = Date.now();
+    } else if (error) {
+      this.rows = [];
+      this.allRows = [];
+      this.errorMsg = 'Could not fetch records.';
+    }
+  }
+ 
+  // ----- sorting (toggle asc/desc per column) -----
+  handleSort(event) {
+    const clickedField = event.detail.fieldName;
+    const field = clickedField === 'recordUrl' ? 'Name' : clickedField;
+ 
+    let direction = 'asc';
+    if (field === this.sortedBy) {
+      direction = this.sortedDirection === 'asc' ? 'desc' : 'asc';
+    }
+    this.sortedBy = field;
+    this.sortedDirection = direction;
+    this.applySort();
+  }
+ 
+  applySort() {
+    const field = this.sortedBy || 'Name';
+    const dir = this.sortedDirection === 'desc' ? -1 : 1;
+    const clone = [...this.allRows];
+    clone.sort((a, b) => {
+      const av = (a[field] ?? '').toString().toLowerCase();
+      const bv = (b[field] ?? '').toString().toLowerCase();
+      if (av === bv) return 0;
+      return av > bv ? dir : -dir;
+    });
+    this.rows = clone;
+  }
+ 
+  // ----- actions -----
+  async handleRefresh() {
+    // increment nonce (wire param) then refreshApex
+    this.refreshNonce = this.refreshNonce + 1;
+    if (this.wiredChildrenResult) {
+      await refreshApex(this.wiredChildrenResult);
+    }
+    this.lastLoaded = Date.now();
+    this._nowTick = Date.now();
+  }
+ 
+  handleNew() {
+    if (!this.recordTypeId && this.recordTypeDeveloperName) {
+      this.dispatchEvent(new ShowToastEvent({
+        title: 'Record Type not ready',
+        message: 'Please wait a moment and try again.',
+        variant: 'warning'
+      }));
+      return;
+    }
+    const state = {
+      recordTypeId: this.recordTypeId,
+      defaultFieldValues: encodeDefaultFieldValues({ [this.parentLookupFieldApiName]: this.recordId })
+    };
+    this[NavigationMixin.Navigate]({
+      type: 'standard__objectPage',
+      attributes: { objectApiName: this.childObjectApiName, actionName: 'new' },
+      state
+    });
+  }
+ 
+  handleViewAll() {
+    this[NavigationMixin.Navigate]({
+      type: 'standard__navItemPage',
+      attributes: { apiName: this.viewAllTabApiName },
+      state: {
+        c__parentId: this.recordId,
+        c__childObjectApiName: this.childObjectApiName,
+        c__parentLookupFieldApiName: this.parentLookupFieldApiName,
+        c__recordTypeDeveloperName: this.recordTypeDeveloperName,
+        c__fieldsToShow: this.fieldsToShow,
+        c__title: this.title
+      }
+    });
+  }
+ 
+  handleRowAction(event) {
+    const actionName = event.detail.action.name;
+    const row = event.detail.row;
+    if (actionName === 'edit') {
+      this[NavigationMixin.Navigate]({
+        type: 'standard__recordPage',
+        attributes: {
+          recordId: row.Id,
+          objectApiName: this.childObjectApiName,
+          actionName: 'edit'
+        }
+      });
+    }
+  }
+}
