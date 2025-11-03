@@ -1,0 +1,177 @@
+import { LightningElement, wire, track } from 'lwc';
+import { CurrentPageReference, NavigationMixin } from 'lightning/navigation';
+import { refreshApex } from '@salesforce/apex';
+ 
+import getChildren from '@salesforce/apex/MedicalConditionsMobileCtrl.getChildren';
+import getRtId from '@salesforce/apex/MedicalConditionsMobileCtrl.getRecordTypeIdByDeveloperName';
+import countChildren from '@salesforce/apex/MedicalConditionsMobileCtrl.countChildren';
+ 
+export default class MedicalRelatedListViewAll extends NavigationMixin(LightningElement) {
+  // ----- state from nav -----
+  parentId;
+  childObjectApiName = 'Medical_Conditions__c';
+  parentLookupFieldApiName = 'Account__c';
+  recordTypeDeveloperName; // e.g., Allergy_Intolerance or Medical_Conditions
+  fieldsToShow = 'Name,Medical_Conditions_Disabilities_Name__c,Allergy_Type__c,Treatment__c,Additional_Notes__c';
+  title = 'Related Records';
+ 
+  // ----- data -----
+  columns = [];
+  @track rows = [];
+  allRows = [];
+  recordTypeId;
+  totalCount = 0;
+  wiredChildrenResult;
+  lastLoaded;
+ 
+  // sorting
+  sortedBy = 'Name';
+  sortedDirection = 'asc';
+ 
+  // refresh bust
+  @track refreshNonce = 0;
+ 
+  // pull params from URL state
+  @wire(CurrentPageReference)
+  parseState(ref) {
+    if (!ref || !ref.state) return;
+    const s = ref.state;
+    this.parentId = s.c__parentId || this.parentId;
+    this.childObjectApiName = s.c__childObjectApiName || this.childObjectApiName;
+    this.parentLookupFieldApiName = s.c__parentLookupFieldApiName || this.parentLookupFieldApiName;
+    this.recordTypeDeveloperName = s.c__recordTypeDeveloperName || this.recordTypeDeveloperName;
+    this.fieldsToShow = s.c__fieldsToShow || this.fieldsToShow;
+    this.title = s.c__title || this.title;
+ 
+    // build columns after we know fields
+    this.buildColumns();
+  }
+ 
+  // record type id
+  @wire(getRtId, { sobjectApiName: '$childObjectApiName', developerName: '$recordTypeDeveloperName' })
+  wiredRt({ data }) {
+    if (data !== undefined) this.recordTypeId = data || null;
+  }
+ 
+  // count
+  @wire(countChildren, {
+    parentId: '$parentId',
+    childObjectApiName: '$childObjectApiName',
+    parentLookupFieldApiName: '$parentLookupFieldApiName',
+    recordTypeId: '$recordTypeId'
+  })
+  wiredCount({ data }) {
+    if (data !== undefined) this.totalCount = data || 0;
+  }
+ 
+  // full list (large limit)
+  @wire(getChildren, {
+    parentId: '$parentId',
+    childObjectApiName: '$childObjectApiName',
+    parentLookupFieldApiName: '$parentLookupFieldApiName',
+    fieldApiNames: '$fieldList',
+    recordTypeId: '$recordTypeId',
+    limitSize: 2000,     // effectively "all" for typical related lists
+    nonce: '$refreshNonce'
+  })
+  wiredChildren(result) {
+    this.wiredChildrenResult = result;
+    const { data, error } = result;
+    if (data) {
+      this.allRows = data.map(r => ({ ...r, recordUrl: '/' + r.Id }));
+      this.sortedBy = 'Name';
+      this.sortedDirection = 'asc';
+      this.applySort();
+      this.lastLoaded = Date.now();
+    } else if (error) {
+      this.rows = [];
+      this.allRows = [];
+    }
+  }
+ 
+  get fieldList() {
+    return (this.fieldsToShow || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+ 
+  get pageTitle() {
+    return `${this.title} (${this.totalCount || 0})`;
+  }
+ 
+  get subtitle() {
+    const bits = [];
+    const n = this.totalCount || 0;
+    bits.push(`${n} item${n === 1 ? '' : 's'}`);
+    bits.push('Filtered by Record Type');
+    bits.push('Sorted by Name');
+    return bits.join(' • ');
+  }
+ 
+  buildColumns() {
+    const cols = this.fieldList.map(f => {
+      if (f === 'Name') {
+        return {
+          label: 'Name',
+          fieldName: 'recordUrl',
+          type: 'url',
+          typeAttributes: { label: { fieldName: 'Name' }, target: '_blank' },
+          cellAttributes: { class: 'slds-text-title_bold' },
+          sortable: true
+        };
+      }
+      let label = f;
+      if (f.endsWith('__c')) {
+        label = f.replace('__c', '').replace(/_/g, ' ');
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+      }
+      return { label, fieldName: f, type: 'text', sortable: true };
+    });
+    this.columns = cols;
+  }
+ 
+  // sorting toggle
+  handleSort(event) {
+    const clickedField = event.detail.fieldName;
+    const field = clickedField === 'recordUrl' ? 'Name' : clickedField;
+    let direction = 'asc';
+    if (field === this.sortedBy) {
+      direction = this.sortedDirection === 'asc' ? 'desc' : 'asc';
+    }
+    this.sortedBy = field;
+    this.sortedDirection = direction;
+    this.applySort();
+  }
+ 
+  applySort() {
+    const field = this.sortedBy || 'Name';
+    const dir = this.sortedDirection === 'desc' ? -1 : 1;
+    const ordered = [...this.allRows].sort((a, b) => {
+      const av = (a[field] ?? '').toString().toLowerCase();
+      const bv = (b[field] ?? '').toString().toLowerCase();
+      if (av === bv) return 0;
+      return av > bv ? dir : -dir;
+    });
+    this.rows = ordered;
+  }
+ 
+  async handleRefresh() {
+    this.refreshNonce = this.refreshNonce + 1;
+    if (this.wiredChildrenResult) {
+      await refreshApex(this.wiredChildrenResult);
+    }
+  }
+ 
+  // back to Account
+  handleBack() {
+    this[NavigationMixin.Navigate]({
+      type: 'standard__recordPage',
+      attributes: {
+        recordId: this.parentId,
+        objectApiName: 'Account',
+        actionName: 'view'
+      }
+    });
+  }
+}
