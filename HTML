@@ -34,11 +34,13 @@
           onclick={handleRefresh}>
         </lightning-button-icon>
  
-        <lightning-button
-          label={newButtonLabel}
-          variant="neutral"
-          onclick={handleNew}>
-        </lightning-button>
+        <template if:true={canCreate}>
+    <lightning-button
+      label={newButtonLabel}
+      variant="neutral"
+      onclick={handleNew}>
+    </lightning-button>
+  </template>
       </div>
     </div>
  
