@@ -21,7 +21,7 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   @api maxRows = 50;
   @api viewAllTabApiName = 'Medical_View_All';
  
-  // --- fieldsToShow: backed by a real reactive array (no getter in wire) ---
+  // fieldsToShow (reactive array for wire)
   _fieldNamesStr = 'Name,Medical_Conditions_Disabilities_Name__c,Allergy_Type__c,Treatment__c,Additional_Notes__c';
   @track fieldApiNames = [];
   @api
@@ -29,7 +29,6 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   set fieldsToShow(v) {
     this._fieldNamesStr = v || '';
     this.fieldApiNames = this._fieldNamesStr.split(',').map(s => s.trim()).filter(Boolean);
-    // Rebuild columns when fields change
     this.buildColumns(!!this.objectInfo?.data);
   }
  
@@ -48,13 +47,25 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   sortedBy = 'Name';
   sortedDirection = 'asc';
  
-  // “Updated … ago”
+  // Updated … ago ticker
   @track _nowTick = Date.now();
   _timerId;
  
-  // Labels metadata
+  // Object metadata + permissions
+  canCreate = false;
+  canEdit = false;
+  _columnsBuiltWithMeta = false;
+ 
   @wire(getObjectInfo, { objectApiName: '$childObjectApiName' })
-  objectInfo;
+  objectInfoWire({ data }) {
+    if (data) {
+      // Object-level CRUD
+      this.canCreate = !!data.createable;
+      this.canEdit   = !!data.updateable;
+      // Rebuild columns to add/remove action column based on Update
+      this.buildColumns(true);
+    }
+  }
  
   // Computed
   get hasCount() { return (this.totalCount || 0) > 0; }
@@ -86,7 +97,7 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
     if (!this.fieldApiNames.length) {
       this.fieldApiNames = this._fieldNamesStr.split(',').map(s => s.trim()).filter(Boolean);
     }
-    this.buildColumns(false); // initial columns without meta
+    this.buildColumns(false); // initial columns
     this._timerId = window.setInterval(() => { this._nowTick = Date.now(); }, 10000);
   }
   disconnectedCallback() {
@@ -95,38 +106,51 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   renderedCallback() {
     if (this.objectInfo?.data && !this._columnsBuiltWithMeta) {
       this.buildColumns(true);
+      this._columnsBuiltWithMeta = true;
     }
   }
-  _columnsBuiltWithMeta = false;
+
+// ----- columns (build from field labels via getObjectInfo) -----
+buildColumns(useMeta = false) {
+  const info = useMeta ? this.objectInfo?.data : null;
  
-  // Columns (no functions inside objects)
-  buildColumns(useMeta = false) {
-    const info = useMeta ? this.objectInfo?.data : null;
-    const cols = (this.fieldApiNames || []).map(f => {
-      if (f === 'Name') {
-        const label = info?.fields?.Name?.label || 'Name';
-        return {
-          label,
-          fieldName: 'recordUrl',
-          type: 'url',
-          typeAttributes: { label: { fieldName: 'Name' }, target: '_blank' },
-          cellAttributes: { class: 'slds-text-title_bold slds-text-heading_small' },
-          sortable: true
-        };
-      }
-      const label = info?.fields?.[f]?.label
-        ? info.fields[f].label
-        : (f.endsWith('__c') ? (f.replace('__c', '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())) : f);
-      return { label, fieldName: f, type: 'text', sortable: true };
-    });
+  const cols = (this.fieldApiNames || []).map((f) => {
+    // Prefer real Salesforce field label from metadata; otherwise prettify API name
+    const label = info?.fields?.[f]?.label
+      ? info.fields[f].label
+      : (
+          f.endsWith('__c')
+            ? f.replace('__c','').replace(/_/g,' ').replace(/^./, c => c.toUpperCase())
+            : f
+        );
+ 
+    // Make Name clickable, but keep dynamic label
+    if (f === 'Name') {
+      return {
+        label,
+        fieldName: 'recordUrl',
+        type: 'url',
+        typeAttributes: { label: { fieldName: 'Name' }, target: '_blank' },
+        cellAttributes: { class: 'slds-text-title_bold slds-text-heading_small' },
+        sortable: true
+      };
+    }
+ 
+    return { label, fieldName: f, type: 'text', sortable: true };
+  });
+ 
+  // (Optional) action column — keep only if you gate by canEdit elsewhere
+  if (this.canEdit) {
     cols.push({
       type: 'action',
       typeAttributes: { rowActions: [{ label: 'Edit', name: 'edit' }] },
       cellAttributes: { alignment: 'right' }
     });
-    this.columns = cols;
-    this._columnsBuiltWithMeta = !!info;
   }
+ 
+  this.columns = cols;
+  this._columnsBuiltWithMeta = !!info;
+}
  
   // Wires
   @wire(getRtId, { sobjectApiName: '$childObjectApiName', developerName: '$recordTypeDeveloperName' })
@@ -149,7 +173,7 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
     parentId: '$recordId',
     childObjectApiName: '$childObjectApiName',
     parentLookupFieldApiName: '$parentLookupFieldApiName',
-    fieldApiNames: '$fieldApiNames',     // <-- field, cloneable
+    fieldApiNames: '$fieldApiNames',
     recordTypeId: '$recordTypeId',
     limitSize: '$maxRows',
     nonce: '$refreshNonce'
@@ -208,7 +232,16 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   }
  
   handleNew() {
-    // Only pass recordTypeId when present to avoid "Invalid page"
+    // Respect Create permission
+    if (!this.canCreate) {
+      this.dispatchEvent(new ShowToastEvent({
+        title: 'Not permitted',
+        message: 'You do not have permission to create this record.',
+        variant: 'error'
+      }));
+      return;
+    }
+ 
     const state = {
       defaultFieldValues: encodeDefaultFieldValues({ [this.parentLookupFieldApiName]: this.recordId })
     };
@@ -222,6 +255,7 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
       }));
       return;
     }
+ 
     this[NavigationMixin.Navigate]({
       type: 'standard__objectPage',
       attributes: { objectApiName: this.childObjectApiName, actionName: 'new' },
@@ -247,7 +281,16 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   handleRowAction(event) {
     const actionName = event.detail.action.name;
     const row = event.detail.row;
+ 
     if (actionName === 'edit') {
+      if (!this.canEdit) {
+        this.dispatchEvent(new ShowToastEvent({
+          title: 'Not permitted',
+          message: 'You do not have permission to edit this record.',
+          variant: 'error'
+        }));
+        return;
+      }
       this[NavigationMixin.Navigate]({
         type: 'standard__recordPage',
         attributes: {
