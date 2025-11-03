@@ -1,0 +1,118 @@
+<!--
+  @description       :
+  @author            : ChangeMeIn@UserSettingsUnder.SFDoc
+  @group             :
+  @last modified on  : 08-29-2025
+  @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
+-->
+<template>
+    <div class="slds-m-bottom_medium">
+    <lightning-combobox name="category" label="Select Category" value={selectedCategory} placeholder="Select Category" options={categoryOptions} onchange={handleCategoryChange}></lightning-combobox>
+    </div>
+    <div class="">
+        <template for:each={objectsData} for:item="obj">
+            <section key={obj.apiName} class="slds-card slds-theme_shade slds-card_boundary">
+                <!-- Card Header -->
+                <header class="slds-card__header slds-theme_shade slds-p-around_small">
+                  <!--- <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center"> slds-p-around_small-->
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-around_none">
+                        <div class="slds-media slds-media_center">
+                            <div class="slds-media__figure">
+                                <lightning-icon
+                                    icon-name="doctype:library_folder"
+                                    alternative-text="Icon"
+                                    size="small"
+                                    title={obj.label}>
+                                </lightning-icon>
+                            </div>
+                           <!---<div class="slds-media__body slds-p-left_x-small"> -->
+                            <div class="slds-wrap slds-media__body slds-p-left_x-small" style="overflow-wrap: break-word">
+                                <h2 class="slds-text-heading_small" title={obj.label}>
+                                    <strong>{obj.label}</strong>
+                                </h2>
+                            </div>
+                        </div>
+                            <div class="resume-button-container">
+                                <template if:true={obj.hideButtonForGdcp}>
+                                    <lightning-button-group>
+                                        <lightning-button
+                                            label={obj.buttonLabel}
+                                            variant="brand-outline"
+                                            onclick={handleStartClick}
+                                            data-object={obj.apiName}
+                                            data-id={obj.firstRecordId}
+                                            data-recordtypeid={obj.recordTypeId}>
+                                        </lightning-button>
+                                        <lightning-button
+                                            label="All"
+                                            variant="brand-outline"
+                                            onclick={handleOpenDataTableTab}
+                                            data-object={obj.apiName}
+                                            data-recordtypeid={obj.recordTypeId}>
+                                        </lightning-button>
+                                    </lightning-button-group>
+                                </template>
+                            </div>
+                        </div>
+                </header>
+ 
+                <!-- Card Body -->
+                <div class="slds-card__body slds-theme_default slds-p-top_none slds-border_top">
+                    <template if:false={obj.hideButtonForGdcp}>
+                        <div class="slds-m-around_none ">
+                            <lightning-layout class="slds-m-around_none">
+                                <lightning-layout-item class="slds-text-align_center" size="12">
+                                    <p style="font-size:16px;">Complete the Goal Directed Care Plan Form to Start Review Form</p>
+                                </lightning-layout-item>
+                            </lightning-layout>
+                        </div>
+                       
+                    </template>
+                    <template if:true={obj.hideButtonForGdcp}>
+                        <template for:each={obj.recordsToDisplay} for:item="record">
+                            <div key={record.Id} class="slds-m-around_none slds-p-around_xx-small">
+                                <lightning-layout horizontal-align="spread" wrap class="slds-m-around_none">
+                                    <lightning-layout-item size="3" class="slds-p-top_xxx-small slds-p-right_xxx-small slds-p-left_xxx-small slds-m-around_none slds-p-bottom_none">
+                                         <p><strong>Name</strong><br /></p>
+                                         <template lwc:if={record.ContentDocId}>  
+                                            <lightning-button
+                                                label={record.Name}
+                                                variant="base"
+                                                onclick={navigateToAssessmentRecord}
+                                                data-object={obj.apiName}
+                                                data-id={record.ContentDocId}>
+                                            </lightning-button>
+                                        </template>
+                                        <template lwc:else>  
+                                            <lightning-button
+                                                label={record.Name}
+                                                variant="base"
+                                                onclick={navigateToAssessmentRecord}
+                                                data-object={obj.apiName}
+                                                data-id={record.Id}>
+                                            </lightning-button>
+                                        </template>
+                                    </lightning-layout-item>
+                                    <lightning-layout-item size="3" class="slds-p-top_xxx-small slds-p-right_x-small slds-p-left_xxx-small slds-m-around_none slds-p-bottom_none">
+                                        <p><strong>Created Date</strong><br />
+                                            <lightning-formatted-date-time value={record.CreatedDate} day="2-digit" month="2-digit" year="numeric"></lightning-formatted-date-time>
+                                        </p>
+                                    </lightning-layout-item>
+                                    <lightning-layout-item size="3" class="slds-p-top_xxx-small slds-p-right_xxx-small slds-p-left_x-small slds-m-around_none slds-p-bottom_none">
+                                        <p><strong>Created By</strong><br />{record.createdByName}</p>
+                                    </lightning-layout-item>
+                                    <lightning-layout-item size="3" class="slds-p-top_xxx-small slds-p-right_xxx-small slds-p-left_xxx-small slds-m-around_none slds-p-bottom_none">
+                                        <p><strong>Status</strong><br />{record.Status__c}</p>
+                                    </lightning-layout-item>
+                                                   
+                                </lightning-layout>
+                            </div>
+                        </template>
+                    </template>
+                   
+                </div>
+            </section>
+        </template>
+    </div>
+</template>
+ 
