@@ -1,0 +1,32 @@
+<template>
+  <section class="slds-m-around_medium slds-card slds-card_boundary slds-p-around_none">
+    <div class="slds-card__header related-header related-header--brown slds-grid slds-grid_vertical-align-center slds-grid_align-spread slds-p-horizontal_small slds-p-vertical_xx-small">
+      <div class="slds-media slds-media_center">
+        <lightning-icon icon-name="utility:stethoscope" size="small" class="slds-m-right_small"></lightning-icon>
+        <div class="slds-media__body">
+          <h2 class="slds-card__header-title">
+            <span class="slds-text-heading_small slds-text-title_bold">{pageTitle}</span>
+          </h2>
+          <p class="slds-text-body_small slds-text-color_weak">{subtitle}</p>
+        </div>
+      </div>
+      <div class="slds-no-flex slds-button-group slds-col_bump-left" role="group">
+        <lightning-button-icon icon-name="utility:refresh" alternative-text="Refresh" title="Refresh" class="slds-button_icon-border-filled slds-m-right_small" onclick={handleRefresh}></lightning-button-icon>
+        <lightning-button label="Back to Account" variant="neutral" onclick={handleBack}></lightning-button>
+      </div>
+    </div>
+ 
+    <div class="slds-card__body slds-card__body_inner no-gaps">
+      <lightning-datatable
+        key-field="Id"
+        data={rows}
+        columns={columns}
+        hide-checkbox-column
+        show-row-number-column
+        sorted-by={sortedBy}
+        sorted-direction={sortedDirection}
+        onsort={handleSort}>
+      </lightning-datatable>
+    </div>
+  </section>
+</template>
