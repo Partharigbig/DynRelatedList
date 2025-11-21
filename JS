@@ -29,7 +29,7 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   set fieldsToShow(v) {
     this._fieldNamesStr = v || '';
     this.fieldApiNames = this._fieldNamesStr.split(',').map(s => s.trim()).filter(Boolean);
-    this.buildColumns(!!this.objectInfo?.data);
+    this.buildColumns(!!this.objectInfo); // << was this.objectInfo?.data
   }
  
   // State
@@ -52,6 +52,7 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   _timerId;
  
   // Object metadata + permissions
+  objectInfo;        // << keep the data here (not .data)
   canCreate = false;
   canEdit = false;
   _columnsBuiltWithMeta = false;
@@ -59,11 +60,10 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   @wire(getObjectInfo, { objectApiName: '$childObjectApiName' })
   objectInfoWire({ data }) {
     if (data) {
-      // Object-level CRUD
+      this.objectInfo = data;           // << store data
       this.canCreate = !!data.createable;
       this.canEdit   = !!data.updateable;
-      // Rebuild columns to add/remove action column based on Update
-      this.buildColumns(true);
+      this.buildColumns(true);          // << rebuild with real labels
     }
   }
  
@@ -104,53 +104,52 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
     if (this._timerId) window.clearInterval(this._timerId);
   }
   renderedCallback() {
-    if (this.objectInfo?.data && !this._columnsBuiltWithMeta) {
+    if (this.objectInfo && !this._columnsBuiltWithMeta) {   // << was .data
       this.buildColumns(true);
       this._columnsBuiltWithMeta = true;
     }
   }
-
-// ----- columns (build from field labels via getObjectInfo) -----
-buildColumns(useMeta = false) {
-  const info = useMeta ? this.objectInfo?.data : null;
  
-  const cols = (this.fieldApiNames || []).map((f) => {
-    // Prefer real Salesforce field label from metadata; otherwise prettify API name
-    const label = info?.fields?.[f]?.label
-      ? info.fields[f].label
-      : (
-          f.endsWith('__c')
-            ? f.replace('__c','').replace(/_/g,' ').replace(/^./, c => c.toUpperCase())
-            : f
-        );
+  // ----- columns (build from field labels via getObjectInfo) -----
+  buildColumns(useMeta = false) {
+    const info = useMeta ? this.objectInfo : null;          // << was this.objectInfo?.data
  
-    // Make Name clickable, but keep dynamic label
-    if (f === 'Name') {
-      return {
-        label,
-        fieldName: 'recordUrl',
-        type: 'url',
-        typeAttributes: { label: { fieldName: 'Name' }, target: '_blank' },
-        cellAttributes: { class: 'slds-text-title_bold slds-text-heading_small' },
-        sortable: true
-      };
+    const cols = (this.fieldApiNames || []).map((f) => {
+      // Prefer real Salesforce field label; otherwise prettify API name
+      const label = info?.fields?.[f]?.label
+        ? info.fields[f].label
+        : (
+            f.endsWith('__c')
+              ? f.replace('__c','').replace(/_/g,' ').replace(/^./, c => c.toUpperCase())
+              : f
+          );
+ 
+      // Make Name clickable, but keep dynamic label (e.g., "Medical Conditions")
+      if (f === 'Name') {
+        return {
+          label,
+          fieldName: 'recordUrl',
+          type: 'url',
+          typeAttributes: { label: { fieldName: 'Name' }, target: '_blank' },
+          cellAttributes: { class: 'slds-text-title_bold slds-text-heading_small' },
+          sortable: true
+        };
+      }
+ 
+      return { label, fieldName: f, type: 'text', sortable: true };
+    });
+ 
+    if (this.canEdit) {
+      cols.push({
+        type: 'action',
+        typeAttributes: { rowActions: [{ label: 'Edit', name: 'edit' }] },
+        cellAttributes: { alignment: 'right' }
+      });
     }
  
-    return { label, fieldName: f, type: 'text', sortable: true };
-  });
- 
-  // (Optional) action column — keep only if you gate by canEdit elsewhere
-  if (this.canEdit) {
-    cols.push({
-      type: 'action',
-      typeAttributes: { rowActions: [{ label: 'Edit', name: 'edit' }] },
-      cellAttributes: { alignment: 'right' }
-    });
+    this.columns = cols;
+    this._columnsBuiltWithMeta = !!info;
   }
- 
-  this.columns = cols;
-  this._columnsBuiltWithMeta = !!info;
-}
  
   // Wires
   @wire(getRtId, { sobjectApiName: '$childObjectApiName', developerName: '$recordTypeDeveloperName' })
@@ -232,7 +231,6 @@ buildColumns(useMeta = false) {
   }
  
   handleNew() {
-    // Respect Create permission
     if (!this.canCreate) {
       this.dispatchEvent(new ShowToastEvent({
         title: 'Not permitted',
