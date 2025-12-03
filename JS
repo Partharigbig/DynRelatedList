@@ -4,14 +4,11 @@ import { encodeDefaultFieldValues } from 'lightning/pageReferenceUtils';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { refreshApex } from '@salesforce/apex';
 import { getObjectInfo } from 'lightning/uiObjectInfoApi';
- 
 import getChildren from '@salesforce/apex/MedicalConditionsMobileCtrl.getChildren';
 import getRtId from '@salesforce/apex/MedicalConditionsMobileCtrl.getRecordTypeIdByDeveloperName';
 import countChildren from '@salesforce/apex/MedicalConditionsMobileCtrl.countChildren';
- 
 export default class MedicalRelatedListByRT extends NavigationMixin(LightningElement) {
   @api recordId;
- 
   // App Builder props
   @api title = 'Related Records';
   @api childObjectApiName = 'Medical_Conditions__c';
@@ -20,7 +17,6 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   @api newButtonLabel = 'New';
   @api maxRows = 50;
   @api viewAllTabApiName = 'Medical_View_All';
- 
   // fieldsToShow (reactive array for wire)
   _fieldNamesStr = 'Name,Medical_Conditions_Disabilities_Name__c,Allergy_Type__c,Treatment__c,Additional_Notes__c';
   @track fieldApiNames = [];
@@ -31,7 +27,6 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
     this.fieldApiNames = this._fieldNamesStr.split(',').map(s => s.trim()).filter(Boolean);
     this.buildColumns(!!this.objectInfo); // << was this.objectInfo?.data
   }
- 
   // State
   allRows = [];
   rows = [];
@@ -42,21 +37,17 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   lastLoaded = null;
   wiredChildrenResult;
   @track refreshNonce = 0;
- 
   // Sorting
   sortedBy = 'Name';
   sortedDirection = 'asc';
- 
   // Updated … ago ticker
   @track _nowTick = Date.now();
   _timerId;
- 
   // Object metadata + permissions
   objectInfo;        // << keep the data here (not .data)
   canCreate = false;
   canEdit = false;
   _columnsBuiltWithMeta = false;
- 
   @wire(getObjectInfo, { objectApiName: '$childObjectApiName' })
   objectInfoWire({ data }) {
     if (data) {
@@ -66,7 +57,6 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
       this.buildColumns(true);          // << rebuild with real labels
     }
   }
- 
   // Computed
   get hasCount() { return (this.totalCount || 0) > 0; }
   get itemCountText() {
@@ -91,7 +81,6 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   }
   get showViewAll() { return this.totalCount > (this.rows?.length || 0); }
   get displayTitle() { return `${this.title} (${this.totalCount || 0})`; }
- 
   // Lifecycle
   connectedCallback() {
     if (!this.fieldApiNames.length) {
@@ -109,11 +98,9 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
       this._columnsBuiltWithMeta = true;
     }
   }
- 
   // ----- columns (build from field labels via getObjectInfo) -----
   buildColumns(useMeta = false) {
     const info = useMeta ? this.objectInfo : null;          // << was this.objectInfo?.data
- 
     const cols = (this.fieldApiNames || []).map((f) => {
       // Prefer real Salesforce field label; otherwise prettify API name
       const label = info?.fields?.[f]?.label
@@ -123,11 +110,13 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
               ? f.replace('__c','').replace(/_/g,' ').replace(/^./, c => c.toUpperCase())
               : f
           );
- 
       // Make Name clickable, but keep dynamic label (e.g., "Medical Conditions")
       if (f === 'Name') {
+        // === CUSTOM OVERRIDE: If this widget is showing the Allergy Intolerance record type,
+        // rename the Name column to "Allergy Id". Otherwise keep the metadata label.
+        const nameLabel = (this.recordTypeDeveloperName === 'Allergy_Intolerance') ? 'Allergy ID' : label;
         return {
-          label,
+          label: nameLabel,
           fieldName: 'recordUrl',
           type: 'url',
           typeAttributes: { label: { fieldName: 'Name' }, target: '_blank' },
@@ -135,10 +124,8 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
           sortable: true
         };
       }
- 
       return { label, fieldName: f, type: 'text', sortable: true };
     });
- 
     if (this.canEdit) {
       cols.push({
         type: 'action',
@@ -146,18 +133,15 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
         cellAttributes: { alignment: 'right' }
       });
     }
- 
     this.columns = cols;
     this._columnsBuiltWithMeta = !!info;
   }
- 
   // Wires
   @wire(getRtId, { sobjectApiName: '$childObjectApiName', developerName: '$recordTypeDeveloperName' })
   wiredRt({ data, error }) {
     if (data !== undefined) this.recordTypeId = data || null;
     else if (error) this.errorMsg = 'Record Type lookup failed.';
   }
- 
   @wire(countChildren, {
     parentId: '$recordId',
     childObjectApiName: '$childObjectApiName',
@@ -167,7 +151,6 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
   wiredCount({ data }) {
     if (data !== undefined) this.totalCount = data || 0;
   }
- 
   @wire(getChildren, {
     parentId: '$recordId',
     childObjectApiName: '$childObjectApiName',
@@ -194,7 +177,6 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
       this.errorMsg = 'Could not fetch records.';
     }
   }
- 
   // Sorting
   handleSort(event) {
     const clickedField = event.detail.fieldName;
@@ -219,7 +201,6 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
     });
     this.rows = clone;
   }
- 
   // Actions
   async handleRefresh() {
     this.refreshNonce = this.refreshNonce + 1;
@@ -229,7 +210,6 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
     this.lastLoaded = Date.now();
     this._nowTick = Date.now();
   }
- 
   handleNew() {
     if (!this.canCreate) {
       this.dispatchEvent(new ShowToastEvent({
@@ -239,7 +219,6 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
       }));
       return;
     }
- 
     const state = {
       defaultFieldValues: encodeDefaultFieldValues({ [this.parentLookupFieldApiName]: this.recordId })
     };
@@ -253,14 +232,12 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
       }));
       return;
     }
- 
     this[NavigationMixin.Navigate]({
       type: 'standard__objectPage',
       attributes: { objectApiName: this.childObjectApiName, actionName: 'new' },
       state
     });
   }
- 
   handleViewAll() {
     this[NavigationMixin.Navigate]({
       type: 'standard__navItemPage',
@@ -275,11 +252,9 @@ export default class MedicalRelatedListByRT extends NavigationMixin(LightningEle
       }
     });
   }
- 
   handleRowAction(event) {
     const actionName = event.detail.action.name;
     const row = event.detail.row;
- 
     if (actionName === 'edit') {
       if (!this.canEdit) {
         this.dispatchEvent(new ShowToastEvent({
