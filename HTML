@@ -1,54 +1,84 @@
 <template>
   <article class="slds-card slds-card_boundary slds-related-list">
-    <!-- Header: standard look, larger height, no white gap -->
-    <div
-      class="slds-card__header slds-theme_shade slds-border_bottom
-             slds-grid slds-grid_vertical-align-center slds-grid_align-spread
-             slds-p-horizontal_small slds-p-vertical_small"
-      style="margin-bottom: 0; min-height:3.5rem;">
-      
-      <div class="slds-media slds-media_center">
-        <!-- Salesforce-colored icon -->
-        <span class="slds-icon_container slds-icon-standard-medication slds-m-right_small" title="Allergy Intolerance">
-          <lightning-icon icon-name="standard:medication" size="small" alternative-text="Allergy Intolerance"></lightning-icon>
-        </span>
+    <!-- ================= Header (two modes) ================= -->
  
-        <div class="slds-media__body">
-          <h2 class="slds-card__header-title slds-truncate" title={displayTitle}>
-            <span class="slds-text-heading_small slds-text-title_bold">{displayTitle}</span>
-          </h2>
-          <p class="slds-text-body_small slds-text-color_weak">
-  {subtitle}
-  <!-- hidden dependency to trigger re-render -->
-  <span class="slds-assistive-text">{_nowTick}</span>
-</p>
+    <!-- Header: NO ROWS (title + New only) -->
+    <template if:false={rows.length}>
+      <div
+        class="slds-card__header slds-theme_shade slds-border_bottom
+               slds-grid slds-grid_vertical-align-center slds-grid_align-spread
+               slds-p-horizontal_small slds-p-vertical_small"
+        style="margin-bottom:0; min-height:3.5rem;">
+        <div class="slds-media slds-media_center">
+          <span class="slds-icon_container slds-icon-standard-medication slds-m-right_small" title={title}>
+            <lightning-icon icon-name="standard:medication" size="small" alternative-text={title}></lightning-icon>
+          </span>
+          <div class="slds-media__body">
+            <h2 class="slds-card__header-title slds-truncate" title={displayTitle}>
+              <span class="slds-text-heading_small slds-text-title_bold">{displayTitle}</span>
+            </h2>
+          </div>
+        </div>
+ 
+        <div class="slds-no-flex slds-col_bump-left">
+          <template if:true={canCreate}>
+            <lightning-button
+              label={newButtonLabel}
+              variant="neutral"
+              onclick={handleNew}>
+            </lightning-button>
+          </template>
+        </div>
+      </div>
+      <!-- No body/footer in empty state -->
+    </template>
+ 
+    <!-- Header: HAS ROWS (title + subtitle + refresh + New) -->
+    <template if:true={rows.length}>
+      <div
+        class="slds-card__header slds-theme_shade slds-border_bottom
+               slds-grid slds-grid_vertical-align-center slds-grid_align-spread
+               slds-p-horizontal_small slds-p-vertical_small"
+        style="margin-bottom:0; min-height:3.5rem;">
+        <div class="slds-media slds-media_center">
+          <span class="slds-icon_container slds-icon-standard-medication slds-m-right_small" title={title}>
+            <lightning-icon icon-name="standard:medication" size="small" alternative-text={title}></lightning-icon>
+          </span>
+          <div class="slds-media__body">
+            <h2 class="slds-card__header-title slds-truncate" title={displayTitle}>
+              <span class="slds-text-heading_small slds-text-title_bold">{displayTitle}</span>
+            </h2>
+            <p class="slds-text-body_small slds-text-color_weak">
+              {subtitle}
+              <span class="slds-assistive-text">{_nowTick}</span>
+            </p>
+          </div>
+        </div>
+ 
+        <div class="slds-no-flex slds-button-group slds-col_bump-left" role="group">
+          <lightning-button-icon
+            icon-name="utility:refresh"
+            alternative-text="Refresh"
+            title="Refresh"
+            varient="bare"
+            class="slds-m-right_small"
+            onclick={handleRefresh}>
+          </lightning-button-icon>
+ 
+          <template if:true={canCreate}>
+            <lightning-button
+              label={newButtonLabel}
+              variant="neutral"
+              onclick={handleNew}>
+            </lightning-button>
+          </template>
         </div>
       </div>
  
-      <div class="slds-no-flex slds-button-group slds-col_bump-left" role="group">
-        <lightning-button-icon
-          icon-name="utility:refresh"
-          alternative-text="Refresh"
-          title="Refresh"
-          class="slds-button_icon-border-filled slds-m-right_small"
-          onclick={handleRefresh}>
-        </lightning-button-icon>
- 
-        <template if:true={canCreate}>
-    <lightning-button
-      label={newButtonLabel}
-      variant="neutral"
-      onclick={handleNew}>
-    </lightning-button>
-  </template>
-      </div>
-    </div>
- 
-    <!-- Body: removed top padding to close header gap -->
-    <div class="slds-card__body slds-p-around_none" style="margin-top: 0;">
-      <div class="slds-scrollable_x" style="max-width:100%;">
-        <div style="min-width: 960px;">
-          <template if:true={rows.length}>
+      <!-- ================= Body (only when rows exist) ================= -->
+      <div class="slds-card__body slds-p-around_none" style="margin-top:0;">
+        <div class="slds-scrollable_x" style="max-width:100%;">
+          <div style="min-width:960px;">
             <lightning-datatable
               key-field="Id"
               data={rows}
@@ -60,19 +90,16 @@
               onsort={handleSort}
               onrowaction={handleRowAction}>
             </lightning-datatable>
-          </template>
- 
-          <template if:false={rows.length}>
-            <div class="slds-text-body_regular slds-p-around_xx-small">No records yet.</div>
-          </template>
+          </div>
         </div>
       </div>
-    </div>
  
-    <template if:true={showViewAll}>
-      <footer class="slds-card__footer slds-grid slds-grid_align-center slds-p-horizontal_small slds-p-vertical_x-small">
-        <a class="slds-card__footer-action" onclick={handleViewAll}>View All</a>
-      </footer>
+      <!-- ================= Footer (only when rows exist) ================= -->
+<template if:true={showViewAll}>
+  <footer class="slds-card__footer slds-grid slds-grid_align-center slds-p-horizontal_small slds-p-vertical_x-small">
+    <a class="slds-card__footer-action" onclick={handleViewAll}>View All</a>
+  </footer>
+</template>
     </template>
   </article>
 </template>
