@@ -1,0 +1,63 @@
+IF(
+  CONTAINS({!$Record.RecordType.DeveloperName}, "Retirement_Living"),
+  {!$Record.Account.FirstName} & " " & {!$Record.Account.LastName} & " - RL" &
+  IF(
+    NOT(ISBLANK({!$Record.Accommodation__r.Unit_Number__c})),
+    " - " & {!$Record.Accommodation__r.Unit_Number__c},
+    ""
+  ) &
+  IF(
+    NOT(ISBLANK({!$Record.Location__r.Name})),
+    " - " & {!$Record.Location__r.Name},
+    ""
+  ),
+ 
+IF(
+  CONTAINS({!$Record.RecordType.DeveloperName}, "Affordable_Housing"),
+  {!$Record.Account.FirstName} & " " & {!$Record.Account.LastName} & " - AH" &
+  IF(
+    NOT(ISBLANK({!$Record.Accommodation__r.Unit_Number__c})),
+    " - " & {!$Record.Accommodation__r.Unit_Number__c},
+    ""
+  ) &
+  IF(
+    NOT(ISBLANK({!$Record.Location__r.Name})),
+    " - " & {!$Record.Location__r.Name},
+    ""
+  ),
+ 
+IF(
+  CONTAINS({!$Record.RecordType.DeveloperName}, "Buy_Back"),
+  "Buy Back - " & {!$Record.Accommodation__r.Unit_Number__c} & " - " & {!$Record.Location__r.Name},
+ IF(
+AND(CONTAINS({!$Record.RecordType.DeveloperName}, "Home_Care"),
+NOT(ISBLANK(TEXT({!$Record.Funding_Type__c})))
+),
+{!$Record.Account.FirstName} & " " &  {!$Record.Account.LastName}& " - " & TEXT({!$Record.Funding_Type__c}),  
+IF(
+  CONTAINS({!$Record.RecordType.DeveloperName}, "Home_Care"),
+  IF(
+	ISPICKVAL({!$Record.Service_Request__c}, "Support at Home"), "SAH - " & {!$Record.Account.FirstName} & " " & {!$Record.Account.LastName},
+    IF(
+      ISPICKVAL({!$Record.Service_Request__c}, "Social Support Groups"), "SSG - " & {!$Record.Account.FirstName} & " " & {!$Record.Account.LastName},
+      IF(
+        ISPICKVAL({!$Record.Service_Request__c}, "NDIS"), "NDIS - " & {!$Record.Account.FirstName} & " " & {!$Record.Account.LastName},
+        IF(
+          ISPICKVAL({!$Record.Service_Request__c}, "Allied Health"), "AH - " & {!$Record.Account.FirstName} & " " & {!$Record.Account.LastName},
+          IF(
+            ISPICKVAL({!$Record.Service_Request__c}, "Home Care"), "HC - " & {!$Record.Account.FirstName} & " " & {!$Record.Account.LastName},
+            IF(
+              ISPICKVAL({!$Record.Service_Request__c}, "Nursing"), "NS - " & {!$Record.Account.FirstName} & " " & {!$Record.Account.LastName},
+              IF(
+                ISPICKVAL({!$Record.Service_Request__c}, "Other"), "OS - " & {!$Record.Account.FirstName} & " " & {!$Record.Account.LastName},
+                {!$Record.Account.FirstName} & " " & {!$Record.Account.LastName}
+              )
+            )
+          )
+        )
+      )
+    )
+  ),
+ 
+""
+)))))
